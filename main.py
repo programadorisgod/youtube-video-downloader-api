@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 def download_video(url, resolution):
     try:
-        yt = YouTube(url)
+        yt = YouTube(url, 'WEB')
         
         # Debug: Print all available streams
         print(f"Available progressive streams for {url}:")
@@ -32,7 +32,7 @@ def download_video(url, resolution):
 
 def get_video_info(url):
     try:
-        yt = YouTube(url)
+        yt = YouTube(url, 'WEB')
         stream = yt.streams.first()
         video_info = {
             "title": yt.title,
@@ -99,7 +99,7 @@ def available_resolutions():
         return jsonify({"error": "Invalid YouTube URL."}), 400
     
     try:
-        yt = YouTube(url)
+        yt = YouTube(url, 'WEB')
         progressive_resolutions = list(set([
             stream.resolution 
             for stream in yt.streams.filter(progressive=True, file_extension='mp4')
