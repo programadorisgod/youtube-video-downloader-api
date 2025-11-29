@@ -1,14 +1,29 @@
 from flask import Flask, request, jsonify
 from pytubefix import YouTube
+from pytubefix.innertube import InnerTube
 import re
 import os
 
 app = Flask(__name__)
 
-def get_yt_object(url):
+def get_yt_object(url, po_token=None, visitor_data=None):
     """
     Creates a YouTube object, trying with 'WEB' client first and falling back.
+    Allows for manual po_token and visitor_data.
     """
+    if po_token and visitor_data:
+        try:
+            # Use manual po_token and visitor_data
+            innertube = InnerTube(client='WEB', use_po_token=True)
+            innertube.context['client']['visitorData'] = visitor_data
+            innertube.context['serviceIntegrityDimensions']['poToken'] = po_token
+            yt = YouTube(url, innertube_client=innertube)
+            _ = yt.title # check if it works
+            return yt
+        except Exception as e:
+            print(f"Manual po_token failed: {e}")
+            raise e
+
     try:
         # First attempt with 'WEB' client for PoToken generation
         yt = YouTube(url, 'WEB')
@@ -30,9 +45,9 @@ def get_yt_object(url):
             # Re-raise other exceptions
             raise e
 
-def download_video(url, resolution):
+def download_video(url, resolution, po_token=None, visitor_data=None):
     try:
-        yt = get_yt_object(url)
+        yt = get_yt_object(url, po_token, visitor_data)
         
         # Debug: Print all available streams
         print(f"Available progressive streams for {url}:")
@@ -55,9 +70,9 @@ def download_video(url, resolution):
     except Exception as e:
         return False, str(e)
 
-def get_video_info(url):
+def get_video_info(url, po_token=None, visitor_data=None):
     try:
-        yt = get_yt_object(url)
+        yt = get_yt_object(url, po_token, visitor_data)
         stream = yt.streams.first()
         video_info = {
             "title": yt.title,
@@ -79,6 +94,8 @@ def is_valid_youtube_url(url):
 def download_by_resolution(resolution):
     data = request.get_json()
     url = data.get('url')
+    po_token = data.get('po_token')
+    visitor_data = data.get('visitor_data')
     
     if not url:
         return jsonify({"error": "Missing 'url' parameter in the request body."}), 400
@@ -86,7 +103,7 @@ def download_by_resolution(resolution):
     if not is_valid_youtube_url(url):
         return jsonify({"error": "Invalid YouTube URL."}), 400
     
-    success, error_message = download_video(url, resolution)
+    success, error_message = download_video(url, resolution, po_token, visitor_data)
     
     if success:
         return jsonify({"message": f"Video with resolution {resolution} downloaded successfully."}), 200
@@ -97,6 +114,8 @@ def download_by_resolution(resolution):
 def video_info():
     data = request.get_json()
     url = data.get('url')
+    po_token = data.get('po_token')
+    visitor_data = data.get('visitor_data')
     
     if not url:
         return jsonify({"error": "Missing 'url' parameter in the request body."}), 400
@@ -104,7 +123,7 @@ def video_info():
     if not is_valid_youtube_url(url):
         return jsonify({"error": "Invalid YouTube URL."}), 400
     
-    video_info, error_message = get_video_info(url)
+    video_info, error_message = get_video_info(url, po_token, visitor_data)
     
     if video_info:
         return jsonify(video_info), 200
@@ -116,6 +135,8 @@ def video_info():
 def available_resolutions():
     data = request.get_json()
     url = data.get('url')
+    po_token = data.get('po_token')
+    visitor_data = data.get('visitor_data')
     
     if not url:
         return jsonify({"error": "Missing 'url' parameter in the request body."}), 400
@@ -124,7 +145,7 @@ def available_resolutions():
         return jsonify({"error": "Invalid YouTube URL."}), 400
     
     try:
-        yt = get_yt_object(url)
+        yt = get_yt_object(url, po_token, visitor_data)
         progressive_resolutions = list(set([
             stream.resolution 
             for stream in yt.streams.filter(progressive=True, file_extension='mp4')
