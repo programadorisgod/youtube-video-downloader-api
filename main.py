@@ -5,9 +5,34 @@ import os
 
 app = Flask(__name__)
 
+def get_yt_object(url):
+    """
+    Creates a YouTube object, trying with 'WEB' client first and falling back.
+    """
+    try:
+        # First attempt with 'WEB' client for PoToken generation
+        yt = YouTube(url, 'WEB')
+        # Perform a quick check to see if we get blocked
+        _ = yt.title 
+        return yt
+    except Exception as e:
+        # If we are detected as a bot, pytubefix might raise an exception containing "bot"
+        if 'bot' in str(e).lower():
+            print("Bot detection with 'WEB' client. Falling back to default client.")
+            # Fallback to default client
+            try:
+                yt = YouTube(url)
+                return yt
+            except Exception as fallback_e:
+                print(f"Fallback failed as well: {fallback_e}")
+                raise fallback_e
+        else:
+            # Re-raise other exceptions
+            raise e
+
 def download_video(url, resolution):
     try:
-        yt = YouTube(url, 'WEB')
+        yt = get_yt_object(url)
         
         # Debug: Print all available streams
         print(f"Available progressive streams for {url}:")
@@ -32,7 +57,7 @@ def download_video(url, resolution):
 
 def get_video_info(url):
     try:
-        yt = YouTube(url, 'WEB')
+        yt = get_yt_object(url)
         stream = yt.streams.first()
         video_info = {
             "title": yt.title,
@@ -99,7 +124,7 @@ def available_resolutions():
         return jsonify({"error": "Invalid YouTube URL."}), 400
     
     try:
-        yt = YouTube(url, 'WEB')
+        yt = get_yt_object(url)
         progressive_resolutions = list(set([
             stream.resolution 
             for stream in yt.streams.filter(progressive=True, file_extension='mp4')
